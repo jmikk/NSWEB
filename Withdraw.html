@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NS Card Value & Selection Fee Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .log-entry { font-family: 'Courier New', Courier, monospace; font-size: 0.85rem; }
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            width: 14px;
+            height: 14px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .input-error { border-color: #ef4444 !important; ring-color: #ef4444 !important; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4 md:p-8">
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-8 border-b border-gray-700 pb-4">
+            <h1 class="text-3xl font-bold text-blue-400">Card Value Calculator</h1>
+            <p class="text-gray-400 mt-2">Calculate adjusted values and selection fees using live NationStates API data.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Left Column: Inputs -->
+            <div class="space-y-6">
+                <section class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center">
+                        <span class="mr-2">🛡️</span> API Identity
+                    </h2>
+                    <p class="text-sm text-gray-400 mb-2">Set your NationStates User-Agent (Required):</p>
+                    <input type="text" id="userAgentInput" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono transition-colors" placeholder="e.g., 'Nation of Example / Card Valuation Script'">
+                </section>
+
+                <section class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center">
+                        <span class="mr-2">📋</span> Input Cards
+                    </h2>
+                    <p class="text-sm text-gray-400 mb-2">Paste card URLs (one per line). Format: <code>...card=123/season=1 (x5)</code></p>
+                    <textarea id="cardInput" class="w-full h-48 bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="https://www.nationstates.net/page=deck/card=1401/season=3 (x2)&#10;https://www.nationstates.net/page=deck/card=55/season=1"></textarea>
+                </section>
+
+                <section class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center">
+                        <span class="mr-2">⚙️</span> Configuration
+                    </h2>
+                    <p class="text-sm text-gray-400 mb-2">Define multipliers. Format: <code>type:key:multiplier</code></p>
+                    <textarea id="configInput" class="w-full h-40 bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none">category: legendary : 1.5
+season: 1 : 4
+season: 2 : 3
+season: 3 : 2
+cte: 2</textarea>
+                </section>
+
+                <button id="runBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg flex items-center justify-center space-x-2">
+                    <span>🚀 Start Calculation</span>
+                </button>
+            </div>
+
+            <!-- Right Column: Results & Logs -->
+            <div class="space-y-6">
+                <section class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4">📊 Totals</h2>
+                    <div class="grid grid-cols-1 gap-4">
+                        <div class="bg-gray-900 p-4 rounded-lg border-l-4 border-green-500">
+                            <span class="text-sm text-gray-400 block uppercase tracking-wider font-bold">Adjusted Value</span>
+                            <span id="adjTotal" class="text-3xl font-mono">0.00</span>
+                        </div>
+                        <div class="bg-gray-900 p-4 rounded-lg border-l-4 border-blue-500">
+                            <span class="text-sm text-gray-400 block uppercase tracking-wider font-bold">Unadjusted (Raw)</span>
+                            <span id="unadjTotal" class="text-3xl font-mono text-blue-300">0.00</span>
+                        </div>
+                        <div class="bg-gray-900 p-4 rounded-lg border-l-4 border-yellow-500">
+                            <span class="text-sm text-gray-400 block uppercase tracking-wider font-bold">Selection Fee</span>
+                            <span id="selectionFee" class="text-3xl font-mono text-yellow-300">0.00</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">📜 Processing Log</h2>
+                        <button id="clearLog" class="text-xs text-gray-400 hover:text-white uppercase">Clear</button>
+                    </div>
+                    <div id="log" class="bg-gray-900 p-4 rounded-lg h-64 overflow-y-auto space-y-2 border border-gray-700">
+                        <div class="text-gray-500 italic">Waiting for input...</div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const cardInput = document.getElementById('cardInput');
+        const configInput = document.getElementById('configInput');
+        const userAgentInput = document.getElementById('userAgentInput');
+        const runBtn = document.getElementById('runBtn');
+        const log = document.getElementById('log');
+        const adjTotalEl = document.getElementById('adjTotal');
+        const unadjTotalEl = document.getElementById('unadjTotal');
+        const selectionFeeEl = document.getElementById('selectionFee');
+
+        // Load UA from localStorage if available
+        const savedUA = localStorage.getItem('ns_user_agent');
+        if (savedUA) userAgentInput.value = savedUA;
+
+        const RARITY_ADJUSTMENTS = {
+            "common": 0.01,
+            "uncommon": 0.05,
+            "rare": 0.10,
+            "ultra-rare": 0.20,
+            "epic": 0.50,
+            "legendary": 1.00,
+        };
+
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type === 'error' ? 'text-red-400 font-bold' : type === 'success' ? 'text-green-400' : 'text-gray-300'}`;
+            const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            entry.innerHTML = `<span class="text-gray-600 mr-2">[${time}]</span> ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function parseConfig(text) {
+            const config = { category: {}, season: {}, cte: 1.0 };
+            const lines = text.split('\n');
+            lines.forEach(line => {
+                const parts = line.trim().split(':').map(p => p.trim());
+                if (parts.length >= 2) {
+                    const type = parts[0].toLowerCase();
+                    if (type === 'category' && parts.length === 3) {
+                        config.category[parts[1].toLowerCase()] = parseFloat(parts[2]);
+                    } else if (type === 'season' && parts.length === 3) {
+                        config.season[parts[1]] = parseFloat(parts[2]);
+                    } else if (type === 'cte') {
+                        config.cte = parseFloat(parts[parts.length - 1]);
+                    }
+                }
+            });
+            return config;
+        }
+
+        function extractMultiplier(line) {
+            let multiplier = 1;
+            const match = line.match(/\((x?\d+)\)$/);
+            if (match) {
+                multiplier = parseInt(match[1].replace('x', ''));
+                line = line.replace(match[0], '').trim();
+            }
+            return { cleanLine: line, multiplier };
+        }
+
+        async function isCte(nationName, userAgent) {
+            const url = `https://www.nationstates.net/cgi-bin/api.cgi?nation=${encodeURIComponent(nationName)}&q=name`;
+            try {
+                const response = await fetch(url, { headers: { 'User-Agent': userAgent } });
+                return response.status !== 200;
+            } catch (e) {
+                return true; 
+            }
+        }
+
+        async function process() {
+            // Remove previous error state
+            userAgentInput.classList.remove('input-error');
+            
+            const userAgent = userAgentInput.value.trim();
+            const lines = cardInput.value.split('\n').filter(l => l.trim() !== '');
+            const config = parseConfig(configInput.value);
+            
+            // FORCE USER-AGENT CHECK
+            if (!userAgent) {
+                userAgentInput.classList.add('input-error');
+                log.innerHTML = '';
+                addLog("ERROR: User-Agent is required to access the NationStates API.", "error");
+                addLog("Please identify yourself in the API Identity box (e.g. your nation name).", "info");
+                userAgentInput.focus();
+                return;
+            }
+
+            // Save UA for next time
+            localStorage.setItem('ns_user_agent', userAgent);
+
+            if (lines.length === 0) {
+                addLog("No card URLs found in input.", "error");
+                return;
+            }
+
+            runBtn.disabled = true;
+            runBtn.innerHTML = `<span class="spinner"></span> Processing...`;
+            log.innerHTML = '';
+            
+            let totalAdj = 0;
+            let totalUnadj = 0;
+
+            for (const line of lines) {
+                const { cleanLine, multiplier } = extractMultiplier(line);
+                
+                try {
+                    const cardIdMatch = cleanLine.match(/card=(\d+)/);
+                    const seasonMatch = cleanLine.match(/season=(\d+)/);
+
+                    if (!cardIdMatch || !seasonMatch) {
+                        addLog(`Skipping line (Invalid URL): ${cleanLine}`, "error");
+                        continue;
+                    }
+
+                    const cardId = cardIdMatch[1];
+                    const season = seasonMatch[1];
+
+                    addLog(`Fetching Card ${cardId} (S${season})...`);
+                    
+                    const apiURL = `https://www.nationstates.net/cgi-bin/api.cgi?q=card+info;cardid=${cardId};season=${season}`;
+                    const response = await fetch(apiURL, { headers: { 'User-Agent': userAgent } });
+                    
+                    await sleep(1000);
+
+                    if (!response.ok) throw new Error(`API Request Failed (${response.status})`);
+                    
+                    const text = await response.text();
+                    const parser = new DOMParser();
+                    const xml = parser.parseFromString(text, "text/xml");
+
+                    const marketValue = parseFloat(xml.querySelector("MARKET_VALUE")?.textContent || 0);
+                    const category = xml.querySelector("CATEGORY")?.textContent?.toLowerCase() || 'common';
+                    const nationName = xml.querySelector("NAME")?.textContent || '';
+
+                    const cteStatus = await isCte(nationName, userAgent);
+                    await sleep(1000);
+
+                    const cteMult = cteStatus ? config.cte : 1.0;
+                    const catMult = config.category[category] || 1.0;
+                    const seaMult = config.season[season] || 1.0;
+                    const rarityAdj = RARITY_ADJUSTMENTS[category] || 0.0;
+
+                    const unadj = marketValue * multiplier;
+                    const adj = (marketValue * catMult * seaMult * cteMult * multiplier) + (rarityAdj * multiplier);
+
+                    totalUnadj += unadj;
+                    totalAdj += adj;
+
+                    addLog(`Success: ${nationName} (${category}) x${multiplier}. Val: ${marketValue.toFixed(2)} → ${adj.toFixed(2)}`, "success");
+                    
+                    adjTotalEl.innerText = totalAdj.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    unadjTotalEl.innerText = totalUnadj.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    selectionFeeEl.innerText = (totalAdj - totalUnadj).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                } catch (err) {
+                    addLog(`Error processing card: ${err.message}`, "error");
+                }
+            }
+
+            addLog("Processing Complete.", "success");
+            runBtn.disabled = false;
+            runBtn.innerText = "🚀 Start Calculation";
+        }
+
+        runBtn.addEventListener('click', process);
+        document.getElementById('clearLog').addEventListener('click', () => { log.innerHTML = ''; });
+    </script>
+</body>
+</html>
