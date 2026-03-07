@@ -30,7 +30,7 @@
                 <p class="text-gray-400 mt-2">Calculate values and bulk-gift cards via the NationStates API.</p>
             </div>
             <div class="text-right text-xs text-gray-500 font-mono">
-                Security: Tokens are never stored on servers.
+                Security: Credentials are never stored on servers.
             </div>
         </header>
 
@@ -121,7 +121,7 @@ cte: 2</textarea>
     <div id="authModal" class="fixed inset-0 modal-bg hidden flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 w-full max-w-md p-8 rounded-2xl shadow-2xl border border-gray-600">
             <h3 class="text-2xl font-bold mb-2 text-purple-400">Authenticate Gifting</h3>
-            <p class="text-gray-400 text-sm mb-6">Enter your <strong>X-Autologin</strong> token. You can find this in your browser cookies for nationstates.net.</p>
+            <p class="text-gray-400 text-sm mb-6">Enter your <strong>X-Autologin</strong> token. This acts as your password for API actions. Do not share this token with others.</p>
             
             <input type="password" id="tokenInput" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-4 mb-6 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none font-mono" placeholder="Your X-Autologin Token">
             
@@ -275,7 +275,10 @@ cte: 2</textarea>
                 return;
             }
             localStorage.setItem('ns_recipient', recipient);
+            // Open modal to request the password/token
+            tokenInput.value = '';
             authModal.classList.remove('hidden');
+            tokenInput.focus();
         }
 
         async function executeGifting() {
@@ -284,7 +287,11 @@ cte: 2</textarea>
             const ua = userAgentInput.value.trim();
             const lines = cardInput.value.split('\n').filter(l => l.trim() !== '');
 
-            if (!token) return;
+            if (!token) {
+                addLog("Authentication token is required to gift cards.", "error");
+                return;
+            }
+
             authModal.classList.add('hidden');
             isProcessing = true;
             giftBtn.disabled = true;
@@ -310,18 +317,24 @@ cte: 2</textarea>
                             } 
                         });
                         
-                        await sleep(1000); // 1s cooldown
+                        await sleep(1000); // 1s cooldown per API rules
                         
-                        if (res.ok) addLog(`Successfully gifted ${cid} S${s}`, "success");
-                        else addLog(`Gift failed for ${cid} S${s}: ${res.status}`, "error");
-                    } catch (e) { addLog(`Network error: ${e.message}`, "error"); }
+                        const responseText = await res.text();
+                        if (res.ok) {
+                            addLog(`Successfully gifted ${cid} S${s}`, "success");
+                        } else {
+                            addLog(`Gift failed for ${cid} S${s}: ${res.status}`, "error");
+                        }
+                    } catch (e) { 
+                        addLog(`Network error on card ${cid}: ${e.message}`, "error"); 
+                    }
                 }
             }
 
             isProcessing = false;
             giftBtn.disabled = false;
             giftBtn.innerText = "🎁 Gift All Cards";
-            tokenInput.value = '';
+            tokenInput.value = ''; // Clear for security
             addLog("Bulk Gifting Sequence Complete.", "gift");
         }
 
