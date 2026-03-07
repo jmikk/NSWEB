@@ -296,8 +296,8 @@ cte: 2</textarea>
             giftBtn.innerHTML = `<span class="spinner"></span> Authenticating...`;
 
             try {
-                // Step 1: Request Pin
-                addLog("Requesting session PIN...", "info");
+                // Step 1: Request Pin via Prep call
+                addLog("Authenticating with NationStates...", "info");
                 const authRes = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi?a=sendcard`, {
                     headers: {
                         'User-Agent': ua,
@@ -305,18 +305,18 @@ cte: 2</textarea>
                     }
                 });
                 
-                // Get PIN from headers
+                // NationStates returns the session PIN in the X-Pin header of the response
                 const pin = authRes.headers.get('X-Pin');
                 
                 if (!pin) {
-                    addLog("Authentication failed: No PIN returned. Check password/User-Agent.", "error");
-                    throw new Error("Auth failed");
+                    addLog("Authentication failed: No PIN returned. Verify your password and nation name (User-Agent).", "error");
+                    throw new Error("Authentication failed");
                 }
 
-                addLog("Authentication successful. Starting batch...", "success");
-                await sleep(1000);
+                addLog("Authentication successful. PIN acquired.", "success");
+                await sleep(1000); // Respect the 1-second rule
 
-                // Step 2: Loop Cards
+                // Step 2: Loop through cards for gifting
                 for (const line of lines) {
                     const { cleanLine, multiplier } = extractMultiplier(line);
                     const cidMatch = cleanLine.match(/card=(\d+)/), sMatch = cleanLine.match(/season=(\d+)/);
@@ -335,12 +335,13 @@ cte: 2</textarea>
                             } 
                         });
                         
-                        await sleep(1000);
+                        await sleep(1000); // 1 request per second limit
                         
                         if (res.ok) {
-                            addLog(`Successfully gifted ${cid} S${s}`, "success");
+                            addLog(`Successfully gifted card #${cid} S${s}`, "success");
                         } else {
-                            addLog(`Gift failed for ${cid} S${s}: Status ${res.status}`, "error");
+                            const errorText = await res.text();
+                            addLog(`Gift failed for #${cid} S${s}: Status ${res.status}. Check if you own the card and it isn't locked.`, "error");
                         }
                     }
                 }
@@ -351,7 +352,7 @@ cte: 2</textarea>
                 isProcessing = false;
                 giftBtn.disabled = false;
                 giftBtn.innerText = "🎁 Gift All Cards";
-                passwordInput.value = '';
+                passwordInput.value = ''; // Clear password from DOM
             }
         }
 
