@@ -30,7 +30,7 @@
                 <p class="text-gray-400 mt-2">Calculate values and bulk-gift cards via the NationStates API.</p>
             </div>
             <div class="text-right text-xs text-gray-500 font-mono">
-                Security: Credentials are never stored on servers.
+                Security: Passwords are used only to acquire session PINs.
             </div>
         </header>
 
@@ -43,8 +43,8 @@
                     </h2>
                     <div class="space-y-4">
                         <div>
-                            <label class="text-xs uppercase font-bold text-gray-500 mb-1 block">User-Agent (Required)</label>
-                            <input type="text" id="userAgentInput" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono" placeholder="Nation Name / Script Name">
+                            <label class="text-xs uppercase font-bold text-gray-500 mb-1 block">User-Agent / Your Nation (Required)</label>
+                            <input type="text" id="userAgentInput" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono" placeholder="Your Nation Name">
                         </div>
                         <div>
                             <label class="text-xs uppercase font-bold text-gray-500 mb-1 block">Recipient Nation (For Gifting)</label>
@@ -121,13 +121,13 @@ cte: 2</textarea>
     <div id="authModal" class="fixed inset-0 modal-bg hidden flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 w-full max-w-md p-8 rounded-2xl shadow-2xl border border-gray-600">
             <h3 class="text-2xl font-bold mb-2 text-purple-400">Authenticate Gifting</h3>
-            <p class="text-gray-400 text-sm mb-6">Enter your <strong>X-Autologin</strong> token. This acts as your password for API actions. Do not share this token with others.</p>
+            <p class="text-gray-400 text-sm mb-6">Enter your <strong>Nation Password</strong>. This will be used to obtain a temporary <code>X-Pin</code> for this gifting session.</p>
             
-            <input type="password" id="tokenInput" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-4 mb-6 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none font-mono" placeholder="Your X-Autologin Token">
+            <input type="password" id="passwordInput" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-4 mb-6 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none font-mono" placeholder="Your Nation Password">
             
             <div class="flex space-x-3">
                 <button id="cancelAuth" class="flex-1 bg-gray-700 hover:bg-gray-600 py-3 rounded-lg font-bold">Cancel</button>
-                <button id="confirmGift" class="flex-1 bg-purple-600 hover:bg-purple-500 py-3 rounded-lg font-bold">Confirm Gifting</button>
+                <button id="confirmGift" class="flex-1 bg-purple-600 hover:bg-purple-500 py-3 rounded-lg font-bold">Confirm & Auth</button>
             </div>
         </div>
     </div>
@@ -145,14 +145,12 @@ cte: 2</textarea>
         const selectionFeeEl = document.getElementById('selectionFee');
         
         const authModal = document.getElementById('authModal');
-        const tokenInput = document.getElementById('tokenInput');
+        const passwordInput = document.getElementById('passwordInput');
         const cancelAuth = document.getElementById('cancelAuth');
         const confirmGift = document.getElementById('confirmGift');
 
-        // State
         let isProcessing = false;
 
-        // Load saved data
         userAgentInput.value = localStorage.getItem('ns_user_agent') || '';
         recipientInput.value = localStorage.getItem('ns_recipient') || '';
 
@@ -209,7 +207,7 @@ cte: 2</textarea>
             const ua = userAgentInput.value.trim();
             if (!ua) {
                 userAgentInput.classList.add('input-error');
-                addLog("ERROR: User-Agent is required.", "error");
+                addLog("ERROR: User-Agent/Nation is required.", "error");
                 return;
             }
             localStorage.setItem('ns_user_agent', ua);
@@ -240,7 +238,8 @@ cte: 2</textarea>
                     await sleep(1000);
                     if (!res.ok) throw new Error(`API error ${res.status}`);
 
-                    const xml = new DOMParser().parseFromString(await res.text(), "text/xml");
+                    const xmlStr = await res.text();
+                    const xml = new DOMParser().parseFromString(xmlStr, "text/xml");
                     const mv = parseFloat(xml.querySelector("MARKET_VALUE")?.textContent || 0);
                     const cat = xml.querySelector("CATEGORY")?.textContent?.toLowerCase() || 'common';
                     const owner = xml.querySelector("NAME")?.textContent || '';
@@ -275,67 +274,85 @@ cte: 2</textarea>
                 return;
             }
             localStorage.setItem('ns_recipient', recipient);
-            // Open modal to request the password/token
-            tokenInput.value = '';
+            passwordInput.value = '';
             authModal.classList.remove('hidden');
-            tokenInput.focus();
+            passwordInput.focus();
         }
 
         async function executeGifting() {
-            const token = tokenInput.value.trim();
+            const password = passwordInput.value.trim();
             const recipient = recipientInput.value.trim();
             const ua = userAgentInput.value.trim();
             const lines = cardInput.value.split('\n').filter(l => l.trim() !== '');
 
-            if (!token) {
-                addLog("Authentication token is required to gift cards.", "error");
+            if (!password) {
+                addLog("Password is required to gift cards.", "error");
                 return;
             }
 
             authModal.classList.add('hidden');
             isProcessing = true;
             giftBtn.disabled = true;
-            giftBtn.innerHTML = `<span class="spinner"></span> Gifting...`;
+            giftBtn.innerHTML = `<span class="spinner"></span> Authenticating...`;
 
-            for (const line of lines) {
-                const { cleanLine, multiplier } = extractMultiplier(line);
-                const cidMatch = cleanLine.match(/card=(\d+)/), sMatch = cleanLine.match(/season=(\d+)/);
-                if (!cidMatch || !sMatch) continue;
-
-                const cid = cidMatch[1], s = sMatch[1];
+            try {
+                // Step 1: Request Pin
+                addLog("Requesting session PIN...", "info");
+                const authRes = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi?a=sendcard`, {
+                    headers: {
+                        'User-Agent': ua,
+                        'X-Password': password
+                    }
+                });
                 
-                // Gifting loop for quantity
-                for (let i = 0; i < multiplier; i++) {
-                    addLog(`Gifting Card ${cid} S${s} to ${recipient} (${i+1}/${multiplier})...`, "gift");
+                // Get PIN from headers
+                const pin = authRes.headers.get('X-Pin');
+                
+                if (!pin) {
+                    addLog("Authentication failed: No PIN returned. Check password/User-Agent.", "error");
+                    throw new Error("Auth failed");
+                }
+
+                addLog("Authentication successful. Starting batch...", "success");
+                await sleep(1000);
+
+                // Step 2: Loop Cards
+                for (const line of lines) {
+                    const { cleanLine, multiplier } = extractMultiplier(line);
+                    const cidMatch = cleanLine.match(/card=(\d+)/), sMatch = cleanLine.match(/season=(\d+)/);
+                    if (!cidMatch || !sMatch) continue;
+
+                    const cid = cidMatch[1], s = sMatch[1];
                     
-                    try {
+                    for (let i = 0; i < multiplier; i++) {
+                        addLog(`Gifting Card ${cid} S${s} to ${recipient} (${i+1}/${multiplier})...`, "gift");
+                        
                         const giftUrl = `https://www.nationstates.net/cgi-bin/api.cgi?a=sendcard&cardid=${cid}&season=${s}&to=${encodeURIComponent(recipient)}`;
                         const res = await fetch(giftUrl, { 
                             headers: { 
                                 'User-Agent': ua,
-                                'X-Autologin': token
+                                'X-Pin': pin
                             } 
                         });
                         
-                        await sleep(1000); // 1s cooldown per API rules
+                        await sleep(1000);
                         
-                        const responseText = await res.text();
                         if (res.ok) {
                             addLog(`Successfully gifted ${cid} S${s}`, "success");
                         } else {
-                            addLog(`Gift failed for ${cid} S${s}: ${res.status}`, "error");
+                            addLog(`Gift failed for ${cid} S${s}: Status ${res.status}`, "error");
                         }
-                    } catch (e) { 
-                        addLog(`Network error on card ${cid}: ${e.message}`, "error"); 
                     }
                 }
+                addLog("Bulk Gifting Sequence Complete.", "gift");
+            } catch (e) { 
+                addLog(`Gifting process aborted: ${e.message}`, "error"); 
+            } finally {
+                isProcessing = false;
+                giftBtn.disabled = false;
+                giftBtn.innerText = "🎁 Gift All Cards";
+                passwordInput.value = '';
             }
-
-            isProcessing = false;
-            giftBtn.disabled = false;
-            giftBtn.innerText = "🎁 Gift All Cards";
-            tokenInput.value = ''; // Clear for security
-            addLog("Bulk Gifting Sequence Complete.", "gift");
         }
 
         runBtn.addEventListener('click', process);
