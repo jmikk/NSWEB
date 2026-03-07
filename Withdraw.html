@@ -283,6 +283,7 @@ cte: 2</textarea>
             const password = passwordInput.value.trim();
             const recipient = recipientInput.value.trim();
             const ua = userAgentInput.value.trim();
+            const myNation = ua.split(/[^\w]/)[0]; // Attempt to extract nation name from UA if possible
             const lines = cardInput.value.split('\n').filter(l => l.trim() !== '');
 
             if (!password) {
@@ -293,30 +294,11 @@ cte: 2</textarea>
             authModal.classList.add('hidden');
             isProcessing = true;
             giftBtn.disabled = true;
-            giftBtn.innerHTML = `<span class="spinner"></span> Authenticating...`;
+            giftBtn.innerHTML = `<span class="spinner"></span> Working...`;
+
+            let pin = null;
 
             try {
-                // Step 1: Request Pin via Prep call
-                addLog("Authenticating with NationStates...", "info");
-                const authRes = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi?a=sendcard`, {
-                    headers: {
-                        'User-Agent': ua,
-                        'X-Password': password
-                    }
-                });
-                
-                // NationStates returns the session PIN in the X-Pin header of the response
-                const pin = authRes.headers.get('X-Pin');
-                
-                if (!pin) {
-                    addLog("Authentication failed: No PIN returned. Verify your password and nation name (User-Agent).", "error");
-                    throw new Error("Authentication failed");
-                }
-
-                addLog("Authentication successful. PIN acquired.", "success");
-                await sleep(1000); // Respect the 1-second rule
-
-                // Step 2: Loop through cards for gifting
                 for (const line of lines) {
                     const { cleanLine, multiplier } = extractMultiplier(line);
                     const cidMatch = cleanLine.match(/card=(\d+)/), sMatch = cleanLine.match(/season=(\d+)/);
@@ -325,24 +307,72 @@ cte: 2</textarea>
                     const cid = cidMatch[1], s = sMatch[1];
                     
                     for (let i = 0; i < multiplier; i++) {
-                        addLog(`Gifting Card ${cid} S${s} to ${recipient} (${i+1}/${multiplier})...`, "gift");
+                        addLog(`Gifting Card ${cid} S${s} (${i+1}/${multiplier})...`, "gift");
                         
-                        const giftUrl = `https://www.nationstates.net/cgi-bin/api.cgi?a=sendcard&cardid=${cid}&season=${s}&to=${encodeURIComponent(recipient)}`;
-                        const res = await fetch(giftUrl, { 
+                        // PHASE 1: PREPARE
+                        const prepBody = new URLSearchParams({
+                            nation: myNation,
+                            c: 'giftcard',
+                            cardid: cid,
+                            season: s,
+                            to: recipient,
+                            mode: 'prepare'
+                        });
+
+                        const prepHeaders = { 'User-Agent': ua };
+                        if (!pin) prepHeaders['X-Password'] = password;
+                        else prepHeaders['X-Pin'] = pin;
+
+                        const prepRes = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi`, {
+                            method: 'POST',
+                            headers: prepHeaders,
+                            body: prepBody
+                        });
+
+                        // Keep track of PIN if it was returned or updated
+                        const newPin = prepRes.headers.get('X-Pin');
+                        if (newPin) pin = newPin;
+
+                        const prepXmlText = await prepRes.text();
+                        const prepXml = new DOMParser().parseFromString(prepXmlText, "text/xml");
+                        const token = prepXml.querySelector("SUCCESS")?.textContent;
+
+                        if (!token) {
+                            const error = prepXml.querySelector("ERROR")?.textContent || "Unknown error";
+                            addLog(`Prep failed for #${cid}: ${error}`, "error");
+                            await sleep(1000);
+                            continue;
+                        }
+
+                        await sleep(1000);
+
+                        // PHASE 2: EXECUTE
+                        const execBody = new URLSearchParams({
+                            nation: myNation,
+                            c: 'giftcard',
+                            cardid: cid,
+                            season: s,
+                            to: recipient,
+                            mode: 'execute',
+                            token: token
+                        });
+
+                        const execRes = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi`, {
+                            method: 'POST',
                             headers: { 
                                 'User-Agent': ua,
                                 'X-Pin': pin
-                            } 
+                            },
+                            body: execBody
                         });
-                        
-                        await sleep(1000); // 1 request per second limit
-                        
-                        if (res.ok) {
-                            addLog(`Successfully gifted card #${cid} S${s}`, "success");
+
+                        if (execRes.ok) {
+                            addLog(`Successfully gifted card #${cid} S${s} to ${recipient}`, "success");
                         } else {
-                            const errorText = await res.text();
-                            addLog(`Gift failed for #${cid} S${s}: Status ${res.status}. Check if you own the card and it isn't locked.`, "error");
+                            addLog(`Exec failed for #${cid} S${s}: Status ${execRes.status}`, "error");
                         }
+                        
+                        await sleep(1000);
                     }
                 }
                 addLog("Bulk Gifting Sequence Complete.", "gift");
@@ -352,7 +382,7 @@ cte: 2</textarea>
                 isProcessing = false;
                 giftBtn.disabled = false;
                 giftBtn.innerText = "🎁 Gift All Cards";
-                passwordInput.value = ''; // Clear password from DOM
+                passwordInput.value = '';
             }
         }
 
