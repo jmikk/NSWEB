@@ -203,7 +203,7 @@ cte: 2</textarea>
 
         function updateSharesDisplay() {
             const price = parseFloat(currentMode === 'withdraw' ? withdrawPriceInput.value : depositPriceInput.value) || 1.0;
-            const rawShares = lastCalculatedAdjValue * price;
+            const rawShares = lastCalculatedAdjValue / price;
             
             // Rounding logic: Withdraw = Ceil, Deposit = Floor
             const shares = currentMode === 'withdraw' ? Math.ceil(rawShares) : Math.floor(rawShares);
