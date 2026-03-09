@@ -20,44 +20,58 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .input-error { border-color: #ef4444 !important; ring-color: #ef4444 !important; }
         .modal-bg { background-color: rgba(0,0,0,0.85); }
+        .toggle-active { background-color: #3b82f6; color: white; }
+        .toggle-verify-active { background-color: #10b981; color: white; }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen p-4 md:p-8">
-    <div class="max-w-6xl mx-auto">
-        <header class="mb-8 border-b border-gray-700 pb-4 flex justify-between items-end">
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-8 border-b border-gray-700 pb-4 flex justify-between items-center">
             <div>
                 <h1 class="text-3xl font-bold text-blue-400">Card Value & Gifter</h1>
-                <p class="text-gray-400 mt-2">Calculate values and bulk-gift cards via the NationStates API.</p>
+                <p class="text-gray-400 mt-1">Calculate values and bulk-gift cards via the NationStates API.</p>
             </div>
-            <div class="text-right text-xs text-gray-500 font-mono">
-                Security: Passwords are used only to acquire session PINs.
+            <div class="flex flex-col items-end space-y-2">
+                <div class="flex bg-gray-800 rounded-lg p-1 border border-gray-700">
+                    <button id="modeWithdraw" class="px-4 py-2 rounded-md text-sm font-bold transition-all toggle-active">Withdraw</button>
+                    <button id="modeDeposit" class="px-4 py-2 rounded-md text-sm font-bold transition-all text-gray-400">Deposit</button>
+                </div>
+                <button id="toggleVerify" class="text-[10px] px-3 py-1 rounded border border-gray-600 font-bold uppercase tracking-wider transition-colors hover:border-gray-400">
+                    Verify Trades: OFF
+                </button>
             </div>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Left Column: Inputs & Config -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- Column 1: Config -->
             <div class="space-y-6 lg:col-span-1">
-                <section class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
-                    <h2 class="text-xl font-semibold mb-4 flex items-center">
-                        <span class="mr-2">🛡️</span> API Identity
-                    </h2>
-                    <div class="space-y-4">
+                <section class="bg-gray-800 p-5 rounded-xl border border-gray-700">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">🛡️ API Identity</h2>
+                    <div class="space-y-3">
+                        <input type="text" id="userAgentInput" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm font-mono" placeholder="Your Nation Name">
+                        <input type="text" id="recipientInput" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm font-mono" placeholder="Recipient (e.g. Grimble_Stocksnatcher)">
+                        <input type="text" id="investorsInput" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm font-mono" placeholder="Investors (comma separated)">
+                    </div>
+                </section>
+
+                <section class="bg-gray-800 p-5 rounded-xl border border-gray-700">
+                    <h2 class="text-lg font-semibold mb-2 flex items-center">💰 Shares</h2>
+                    <div class="space-y-3 mt-2">
                         <div>
-                            <label class="text-xs uppercase font-bold text-gray-500 mb-1 block">User-Agent / Your Nation (Required)</label>
-                            <input type="text" id="userAgentInput" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono" placeholder="Your Nation Name">
+                            <label class="text-[10px] text-gray-500 uppercase font-bold">Withdraw Share Price</label>
+                            <input type="number" id="withdrawSharePrice" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm font-mono" value="1.0" step="0.01">
                         </div>
                         <div>
-                            <label class="text-xs uppercase font-bold text-gray-500 mb-1 block">Recipient Nation (For Gifting)</label>
-                            <input type="text" id="recipientInput" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono" placeholder="Recipient Name">
+                            <label class="text-[10px] text-gray-500 uppercase font-bold">Deposit Share Price</label>
+                            <input type="number" id="depositSharePrice" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm font-mono" value="1.0" step="0.01">
                         </div>
                     </div>
                 </section>
 
-                <section class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
-                    <h2 class="text-xl font-semibold mb-4 flex items-center">
-                        <span class="mr-2">⚙️</span> Multipliers
-                    </h2>
-                    <textarea id="configInput" class="w-full h-40 bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none">category: legendary : 1.5
+                <section class="bg-gray-800 p-5 rounded-xl border border-gray-700">
+                    <h2 class="text-lg font-semibold mb-2 flex items-center">⚙️ Multipliers</h2>
+                    <p class="text-[10px] text-gray-500 mb-2 uppercase font-bold" id="multLabel">Active Multipliers</p>
+                    <textarea id="configInput" class="w-full h-48 bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs font-mono">category: legendary : 1.5
 season: 1 : 4
 season: 2 : 3
 season: 3 : 2
@@ -65,51 +79,53 @@ cte: 2</textarea>
                 </section>
             </div>
 
-            <!-- Middle Column: Card Input -->
+            <!-- Column 2: Whitelist -->
             <div class="space-y-6 lg:col-span-1">
-                <section class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 h-full flex flex-col">
-                    <h2 class="text-xl font-semibold mb-4 flex items-center">
-                        <span class="mr-2">📋</span> Card URLs
-                    </h2>
-                    <textarea id="cardInput" class="w-full flex-grow bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none min-h-[300px]" placeholder="https://www.nationstates.net/page=deck/card=1401/season=3 (x2)"></textarea>
+                <section class="bg-gray-800 p-5 rounded-xl border border-gray-700 h-full flex flex-col">
+                    <h2 class="text-lg font-semibold mb-2 flex items-center">📜 Whitelist</h2>
+                    <p class="text-[10px] text-gray-500 mb-2 uppercase font-bold">Format: CardID,Season (one per line)</p>
+                    <textarea id="whitelistInput" class="w-full flex-grow bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs font-mono" placeholder="159058,1&#10;1401,3"></textarea>
+                </section>
+            </div>
+
+            <!-- Column 3: Card Input -->
+            <div class="space-y-6 lg:col-span-1">
+                <section class="bg-gray-800 p-5 rounded-xl border border-gray-700 h-full flex flex-col">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">📋 Card URLs</h2>
+                    <textarea id="cardInput" class="w-full flex-grow bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs font-mono min-h-[300px]" placeholder="Paste Card URLs here..."></textarea>
                     
-                    <div class="mt-4 grid grid-cols-1 gap-3">
-                        <button id="runBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition-all shadow-lg flex items-center justify-center">
-                            <span>🚀 Calculate Values</span>
-                        </button>
-                        <button id="giftBtn" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg transition-all shadow-lg flex items-center justify-center">
-                            <span>🎁 Gift All Cards</span>
-                        </button>
+                    <div class="mt-4 grid grid-cols-1 gap-2">
+                        <button id="runBtn" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg flex items-center justify-center transition-colors">🚀 Calculate Values</button>
+                        <button id="giftBtn" class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg flex items-center justify-center transition-colors">🎁 Gift All Cards</button>
                     </div>
                 </section>
             </div>
 
-            <!-- Right Column: Results & Logs -->
+            <!-- Column 4: Totals & Logs -->
             <div class="space-y-6 lg:col-span-1">
-                <section class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
-                    <h2 class="text-xl font-semibold mb-4">📊 Totals</h2>
-                    <div class="space-y-3">
-                        <div class="bg-gray-900 p-3 rounded-lg border-l-4 border-green-500">
-                            <span class="text-[10px] text-gray-500 uppercase font-bold">Adjusted Value</span>
-                            <div id="adjTotal" class="text-2xl font-mono">0.00</div>
+                <section class="bg-gray-800 p-5 rounded-xl border border-gray-700">
+                    <h2 class="text-lg font-semibold mb-4">📊 Totals</h2>
+                    <div class="space-y-2">
+                        <div class="bg-gray-900 p-2 rounded border-l-4 border-green-500">
+                            <div class="flex justify-between items-start">
+                                <span class="text-[10px] text-gray-500 uppercase font-bold">Adj. Value</span>
+                                <span id="shareValueLabel" class="text-[9px] bg-green-900 text-green-300 px-1 rounded">Shares: 0.00</span>
+                            </div>
+                            <div id="adjTotal" class="text-xl font-mono">0.00</div>
                         </div>
-                        <div class="bg-gray-900 p-3 rounded-lg border-l-4 border-blue-500">
-                            <span class="text-[10px] text-gray-500 uppercase font-bold">Unadjusted (Raw)</span>
-                            <div id="unadjTotal" class="text-2xl font-mono text-blue-300">0.00</div>
-                        </div>
-                        <div class="bg-gray-900 p-3 rounded-lg border-l-4 border-yellow-500">
-                            <span class="text-[10px] text-gray-500 uppercase font-bold">Selection Fee</span>
-                            <div id="selectionFee" class="text-2xl font-mono text-yellow-300">0.00</div>
+                        <div class="bg-gray-900 p-2 rounded border-l-4 border-blue-500">
+                            <span class="text-[10px] text-gray-500 uppercase font-bold">Raw MV</span>
+                            <div id="unadjTotal" class="text-xl font-mono text-blue-300">0.00</div>
                         </div>
                     </div>
                 </section>
 
-                <section class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
+                <section class="bg-gray-800 p-5 rounded-xl border border-gray-700">
                     <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-xl font-semibold">📜 Log</h2>
+                        <h2 class="text-lg font-semibold">📜 Log</h2>
                         <button id="clearLog" class="text-[10px] text-gray-500 hover:text-white uppercase font-bold">Clear</button>
                     </div>
-                    <div id="log" class="bg-gray-900 p-3 rounded-lg h-64 overflow-y-auto space-y-1 border border-gray-700 text-xs">
+                    <div id="log" class="bg-gray-900 p-2 rounded h-64 overflow-y-auto space-y-1 text-xs border border-gray-700">
                         <div class="text-gray-600 italic">Ready.</div>
                     </div>
                 </section>
@@ -117,17 +133,14 @@ cte: 2</textarea>
         </div>
     </div>
 
-    <!-- Gifting Auth Modal -->
+    <!-- Auth Modal -->
     <div id="authModal" class="fixed inset-0 modal-bg hidden flex items-center justify-center z-50 p-4">
-        <div class="bg-gray-800 w-full max-w-md p-8 rounded-2xl shadow-2xl border border-gray-600">
-            <h3 class="text-2xl font-bold mb-2 text-purple-400">Authenticate Gifting</h3>
-            <p class="text-gray-400 text-sm mb-6">Enter your <strong>Nation Password</strong>. This will be used to obtain a temporary <code>X-Pin</code> for this gifting session.</p>
-            
-            <input type="password" id="passwordInput" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-4 mb-6 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none font-mono" placeholder="Your Nation Password">
-            
-            <div class="flex space-x-3">
-                <button id="cancelAuth" class="flex-1 bg-gray-700 hover:bg-gray-600 py-3 rounded-lg font-bold">Cancel</button>
-                <button id="confirmGift" class="flex-1 bg-purple-600 hover:bg-purple-500 py-3 rounded-lg font-bold">Confirm & Auth</button>
+        <div class="bg-gray-800 w-full max-w-md p-6 rounded-xl border border-gray-600 shadow-2xl">
+            <h3 class="text-xl font-bold mb-4 text-purple-400">Authenticate Gifting</h3>
+            <input type="password" id="passwordInput" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 mb-4 text-sm font-mono" placeholder="Nation Password">
+            <div class="flex space-x-2">
+                <button id="cancelAuth" class="flex-1 bg-gray-700 hover:bg-gray-600 py-2 rounded-lg font-bold">Cancel</button>
+                <button id="confirmGift" class="flex-1 bg-purple-600 hover:bg-purple-500 py-2 rounded-lg font-bold">Confirm</button>
             </div>
         </div>
     </div>
@@ -135,14 +148,23 @@ cte: 2</textarea>
     <script>
         const cardInput = document.getElementById('cardInput');
         const configInput = document.getElementById('configInput');
+        const whitelistInput = document.getElementById('whitelistInput');
         const userAgentInput = document.getElementById('userAgentInput');
         const recipientInput = document.getElementById('recipientInput');
+        const investorsInput = document.getElementById('investorsInput');
         const runBtn = document.getElementById('runBtn');
         const giftBtn = document.getElementById('giftBtn');
         const log = document.getElementById('log');
         const adjTotalEl = document.getElementById('adjTotal');
         const unadjTotalEl = document.getElementById('unadjTotal');
-        const selectionFeeEl = document.getElementById('selectionFee');
+        const shareLabel = document.getElementById('shareValueLabel');
+        
+        const withdrawPriceInput = document.getElementById('withdrawSharePrice');
+        const depositPriceInput = document.getElementById('depositSharePrice');
+        
+        const modeWithdraw = document.getElementById('modeWithdraw');
+        const modeDeposit = document.getElementById('modeDeposit');
+        const toggleVerify = document.getElementById('toggleVerify');
         
         const authModal = document.getElementById('authModal');
         const passwordInput = document.getElementById('passwordInput');
@@ -150,35 +172,113 @@ cte: 2</textarea>
         const confirmGift = document.getElementById('confirmGift');
 
         let isProcessing = false;
+        let currentMode = 'withdraw';
+        let verifyTrades = false;
+        let lastCalculatedAdjValue = 0;
 
-        userAgentInput.value = localStorage.getItem('ns_user_agent') || '';
-        recipientInput.value = localStorage.getItem('ns_recipient') || '';
+        // Defaults
+        const DEFAULT_WITHDRAW_CONFIG = "category: legendary : 1.5\nseason: 1 : 4\nseason: 2 : 3\nseason: 3 : 2\ncte: 2";
+        const DEFAULT_DEPOSIT_CONFIG = "category: legendary : 1.4\nnon-whitelist: 0.01\nseason: 1 : 2.5\nseason: 2 : 1.75\nseason: 3 : 1.25\nseason: 4 : 1\ncte: 1.5";
 
-        const RARITY_ADJUSTMENTS = {
-            "common": 0.01, "uncommon": 0.05, "rare": 0.10, 
-            "ultra-rare": 0.20, "epic": 0.50, "legendary": 1.00
-        };
+        // Persistent Storage Loading
+        userAgentInput.value = localStorage.getItem('ns_ua') || '';
+        recipientInput.value = localStorage.getItem('ns_recip') || '';
+        whitelistInput.value = localStorage.getItem('ns_whitelist') || '';
+        withdrawPriceInput.value = localStorage.getItem('ns_withdraw_price') || '1.0';
+        depositPriceInput.value = localStorage.getItem('ns_deposit_price') || '1.0';
+        
+        const savedConfig = localStorage.getItem('ns_config');
+        if (savedConfig) configInput.value = savedConfig;
 
-        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        // Note: Card URLs and Investors are specifically NOT saved as per request.
+
+        function savePersistentData() {
+            localStorage.setItem('ns_ua', userAgentInput.value.trim());
+            localStorage.setItem('ns_recip', recipientInput.value.trim());
+            localStorage.setItem('ns_whitelist', whitelistInput.value.trim());
+            localStorage.setItem('ns_config', configInput.value.trim());
+            localStorage.setItem('ns_withdraw_price', withdrawPriceInput.value);
+            localStorage.setItem('ns_deposit_price', depositPriceInput.value);
+        }
+
+        function updateSharesDisplay() {
+            const price = parseFloat(currentMode === 'withdraw' ? withdrawPriceInput.value : depositPriceInput.value) || 1.0;
+            const shares = lastCalculatedAdjValue * price;
+            shareLabel.innerText = `Shares: ${shares.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+
+        // Smart Sleep Utility
+        let lastApiCall = 0;
+        async function smartSleep() {
+            const now = Date.now();
+            const elapsed = now - lastApiCall;
+            if (elapsed < 1000) {
+                await new Promise(resolve => setTimeout(resolve, 1000 - elapsed));
+            }
+            lastApiCall = Date.now();
+        }
 
         function addLog(message, type = 'info') {
             const entry = document.createElement('div');
             entry.className = `log-entry ${type === 'error' ? 'text-red-400' : type === 'success' ? 'text-green-400' : type === 'gift' ? 'text-purple-400' : 'text-gray-400'}`;
             const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            entry.innerHTML = `<span class="text-gray-600 mr-2">[${time}]</span> ${message}`;
+            entry.innerHTML = `<span class="text-gray-600 mr-1">[${time}]</span> ${message}`;
             log.appendChild(entry);
             log.scrollTop = log.scrollHeight;
         }
 
+        modeWithdraw.addEventListener('click', () => {
+            currentMode = 'withdraw';
+            modeWithdraw.classList.add('toggle-active');
+            modeWithdraw.classList.remove('text-gray-400');
+            modeDeposit.classList.remove('toggle-active');
+            modeDeposit.classList.add('text-gray-400');
+            configInput.value = DEFAULT_WITHDRAW_CONFIG;
+            updateSharesDisplay();
+        });
+
+        modeDeposit.addEventListener('click', () => {
+            currentMode = 'deposit';
+            modeDeposit.classList.add('toggle-active');
+            modeDeposit.classList.remove('text-gray-400');
+            modeWithdraw.classList.remove('toggle-active');
+            modeWithdraw.classList.add('text-gray-400');
+            configInput.value = DEFAULT_DEPOSIT_CONFIG;
+            updateSharesDisplay();
+        });
+
+        [withdrawPriceInput, depositPriceInput].forEach(inp => {
+            inp.addEventListener('input', () => {
+                updateSharesDisplay();
+                savePersistentData();
+            });
+        });
+
+        toggleVerify.addEventListener('click', () => {
+            verifyTrades = !verifyTrades;
+            toggleVerify.innerText = `Verify Trades: ${verifyTrades ? 'ON' : 'OFF'}`;
+            if (verifyTrades) {
+                toggleVerify.classList.add('toggle-verify-active');
+            } else {
+                toggleVerify.classList.remove('toggle-verify-active');
+            }
+        });
+
         function parseConfig(text) {
-            const config = { category: {}, season: {}, cte: 1.0 };
+            const config = { category: {}, season: {}, cte: 1.0, nonWhitelist: 1.0 };
             text.split('\n').forEach(line => {
                 const parts = line.trim().split(':').map(p => p.trim());
                 if (parts.length >= 2) {
                     const type = parts[0].toLowerCase();
-                    if (type === 'category' && parts.length === 3) config.category[parts[1].toLowerCase()] = parseFloat(parts[2]);
-                    else if (type === 'season' && parts.length === 3) config.season[parts[1]] = parseFloat(parts[2]);
-                    else if (type === 'cte') config.cte = parseFloat(parts[parts.length - 1]);
+                    if (type === 'category' && parts.length === 3) {
+                        config.category[parts[1].toLowerCase()] = parseFloat(parts[2]);
+                    } else if (type === 'season' && parts.length === 3) {
+                        config.season[parts[1]] = parseFloat(parts[2]);
+                    } else if (type === 'cte') {
+                        config.cte = parseFloat(parts[parts.length - 1]);
+                    } else if (type === 'non-whitelist') {
+                        config.nonWhitelist = parseFloat(parts[parts.length - 1]);
+                    }
                 }
             });
             return config;
@@ -186,81 +286,145 @@ cte: 2</textarea>
 
         function extractMultiplier(line) {
             let multiplier = 1;
-            const match = line.match(/\((x?\d+)\)$/);
+            const match = line.match(/\((x?\d+)\)$/) || line.match(/x(\d+)$/) || line.match(/^(\d+)x/);
             if (match) {
-                multiplier = parseInt(match[1].replace('x', ''));
+                multiplier = parseInt(match[1]);
                 line = line.replace(match[0], '').trim();
             }
             return { cleanLine: line, multiplier };
         }
 
-        async function isCte(nationName, userAgent) {
-            const url = `https://www.nationstates.net/cgi-bin/api.cgi?nation=${encodeURIComponent(nationName)}&q=name`;
+        async function checkCteStatus(nationName, ua) {
             try {
-                const response = await fetch(url, { headers: { 'User-Agent': userAgent } });
-                return response.status !== 200;
+                await smartSleep();
+                const res = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi?nation=${encodeURIComponent(nationName)}&q=name`, { headers: { 'User-Agent': ua } });
+                return res.status !== 200;
             } catch (e) { return true; }
+        }
+
+        async function verifyTradeHistory(xml, expectedCount, investors, recipient) {
+            const trades = xml.querySelectorAll("TRADE");
+            if (!trades || trades.length === 0) return { valid: false, count: 0 };
+
+            let validCount = 0;
+            const targetRecipient = recipient.toLowerCase().replace(/ /g, "_");
+            const allowedInvestors = investors.split(',').map(i => i.trim().toLowerCase().replace(/ /g, "_"));
+
+            trades.forEach(trade => {
+                const buyer = trade.querySelector("BUYER")?.textContent?.toLowerCase() || "";
+                const seller = trade.querySelector("SELLER")?.textContent?.toLowerCase() || "";
+                const price = trade.querySelector("PRICE")?.textContent || ""; // Empty price means gift/0
+
+                if (buyer === targetRecipient && allowedInvestors.includes(seller) && !price) {
+                    validCount++;
+                }
+            });
+
+            return {
+                valid: validCount >= expectedCount,
+                count: validCount
+            };
         }
 
         async function process() {
             if (isProcessing) return;
             const ua = userAgentInput.value.trim();
-            if (!ua) {
-                userAgentInput.classList.add('input-error');
-                addLog("ERROR: User-Agent/Nation is required.", "error");
-                return;
+            const recipient = recipientInput.value.trim();
+            const investors = investorsInput.value.trim();
+
+            if (!ua) return addLog("User-Agent required.", "error");
+            if (verifyTrades && (!recipient || !investors)) {
+                return addLog("Verification requires Recipient and Investors.", "error");
             }
-            localStorage.setItem('ns_user_agent', ua);
             
+            savePersistentData();
+
             const lines = cardInput.value.split('\n').filter(l => l.trim() !== '');
             if (lines.length === 0) return addLog("No cards provided.", "error");
+
+            const whitelist = whitelistInput.value.split('\n')
+                .map(entry => entry.trim())
+                .filter(entry => entry !== '');
+                
+            const activeConfig = parseConfig(configInput.value);
 
             isProcessing = true;
             runBtn.disabled = true;
             runBtn.innerHTML = `<span class="spinner"></span> Working...`;
             log.innerHTML = '';
             
-            const config = parseConfig(configInput.value);
             let totalAdj = 0, totalUnadj = 0;
 
             for (const line of lines) {
                 const { cleanLine, multiplier } = extractMultiplier(line);
-                const cardIdMatch = cleanLine.match(/card=(\d+)/);
-                const seasonMatch = cleanLine.match(/season=(\d+)/);
+                const cidMatch = cleanLine.match(/card=(\d+)/), sMatch = cleanLine.match(/season=(\d+)/);
+                if (!cidMatch || !sMatch) {
+                    addLog(`Skipping line (no CID/Season): ${cleanLine.substring(0, 20)}...`, "error");
+                    continue;
+                }
 
-                if (!cardIdMatch || !seasonMatch) continue;
-
-                const cid = cardIdMatch[1], s = seasonMatch[1];
-                addLog(`Checking Card ${cid} S${s}...`);
+                const cid = cidMatch[1], s = sMatch[1];
+                addLog(`Checking #${cid} S${s}...`);
 
                 try {
-                    const res = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi?q=card+info;cardid=${cid};season=${s}`, { headers: { 'User-Agent': ua } });
-                    await sleep(1000);
-                    if (!res.ok) throw new Error(`API error ${res.status}`);
+                    await smartSleep();
+                    const endpoint = verifyTrades ? 'card+trades+info' : 'card+info';
+                    const res = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi?q=${endpoint};cardid=${cid};season=${s}`, { headers: { 'User-Agent': ua } });
+                    
+                    if (!res.ok) throw new Error(`API Error ${res.status}`);
 
                     const xmlStr = await res.text();
                     const xml = new DOMParser().parseFromString(xmlStr, "text/xml");
+                    
+                    if (xml.querySelector("ERROR")) {
+                        throw new Error(xml.querySelector("ERROR").textContent);
+                    }
+
                     const mv = parseFloat(xml.querySelector("MARKET_VALUE")?.textContent || 0);
                     const cat = xml.querySelector("CATEGORY")?.textContent?.toLowerCase() || 'common';
                     const owner = xml.querySelector("NAME")?.textContent || '';
+                    
+                    let actualMultiplier = multiplier;
+                    if (verifyTrades) {
+                        const vResult = await verifyTradeHistory(xml, multiplier, investors, recipient);
+                        if (!vResult.valid) {
+                            addLog(`Verification failed for #${cid}: Found ${vResult.count}/${multiplier} trades.`, "error");
+                            actualMultiplier = vResult.count;
+                        }
+                    }
 
-                    const cteStatus = await isCte(owner, ua);
-                    await sleep(1000);
+                    const cteStatus = await checkCteStatus(owner, ua);
 
-                    const cteMult = cteStatus ? config.cte : 1.0;
-                    const val = (mv * (config.category[cat] || 1.0) * (config.season[s] || 1.0) * cteMult * multiplier) + ((RARITY_ADJUSTMENTS[cat] || 0) * multiplier);
+                    const catMult = activeConfig.category[cat] || 1.0;
+                    const seasonMult = activeConfig.season[s] || 1.0;
+                    const cteMult = cteStatus ? activeConfig.cte : 1.0;
+                    
+                    let baseMult = catMult;
 
-                    totalUnadj += (mv * multiplier);
-                    totalAdj += val;
+                    if (currentMode === 'deposit') {
+                        const isWhitelisted = whitelist.includes(`${cid},${s}`);
+                        const isLegendary = cat === 'legendary';
+                        const isLowValue = mv < 10.0;
+                        if (!isLegendary && !isWhitelisted && !isLowValue) {
+                            baseMult = activeConfig.nonWhitelist;
+                        }
+                    }
 
-                    addLog(`${owner} (${cat}) x${multiplier}: ${mv.toFixed(2)} → ${val.toFixed(2)}`, "success");
+                    const val = mv * baseMult * seasonMult * cteMult;
+
+                    totalUnadj += (mv * actualMultiplier);
+                    totalAdj += (val * actualMultiplier);
+
+                    addLog(`${cid} (S${s}) [${cat}] x${actualMultiplier}: ${mv.toFixed(2)} → ${(val * actualMultiplier).toFixed(2)}`, "success");
+                    
                     adjTotalEl.innerText = totalAdj.toFixed(2);
                     unadjTotalEl.innerText = totalUnadj.toFixed(2);
-                    selectionFeeEl.innerText = (totalAdj - totalUnadj).toFixed(2);
+                    lastCalculatedAdjValue = totalAdj;
+                    updateSharesDisplay();
                 } catch (e) { addLog(`Error ${cid}: ${e.message}`, "error"); }
             }
 
-            addLog("Calculation Finished.", "success");
+            addLog(`Completed in ${currentMode.toUpperCase()} mode.`, "success");
             isProcessing = false;
             runBtn.disabled = false;
             runBtn.innerText = "🚀 Calculate Values";
@@ -269,11 +433,7 @@ cte: 2</textarea>
         async function startGifting() {
             const recipient = recipientInput.value.trim();
             const ua = userAgentInput.value.trim();
-            if (!recipient || !ua) {
-                addLog("Recipient and User-Agent are required for gifting.", "error");
-                return;
-            }
-            localStorage.setItem('ns_recipient', recipient);
+            if (!recipient || !ua) return addLog("Setup Identity & Recipient first.", "error");
             passwordInput.value = '';
             authModal.classList.remove('hidden');
             passwordInput.focus();
@@ -283,18 +443,15 @@ cte: 2</textarea>
             const password = passwordInput.value.trim();
             const recipient = recipientInput.value.trim();
             const ua = userAgentInput.value.trim();
-            const myNation = ua.split(/[^\w]/)[0]; // Attempt to extract nation name from UA if possible
+            const myNation = ua.split(/[^\w]/)[0];
             const lines = cardInput.value.split('\n').filter(l => l.trim() !== '');
 
-            if (!password) {
-                addLog("Password is required to gift cards.", "error");
-                return;
-            }
+            if (!password) return addLog("Password required.", "error");
 
             authModal.classList.add('hidden');
             isProcessing = true;
             giftBtn.disabled = true;
-            giftBtn.innerHTML = `<span class="spinner"></span> Working...`;
+            giftBtn.innerHTML = `<span class="spinner"></span> Gifting...`;
 
             let pin = null;
 
@@ -303,82 +460,43 @@ cte: 2</textarea>
                     const { cleanLine, multiplier } = extractMultiplier(line);
                     const cidMatch = cleanLine.match(/card=(\d+)/), sMatch = cleanLine.match(/season=(\d+)/);
                     if (!cidMatch || !sMatch) continue;
-
                     const cid = cidMatch[1], s = sMatch[1];
                     
                     for (let i = 0; i < multiplier; i++) {
-                        addLog(`Gifting Card ${cid} S${s} (${i+1}/${multiplier})...`, "gift");
+                        addLog(`Gifting #${cid} S${s} (${i+1}/${multiplier})...`, "gift");
                         
-                        // PHASE 1: PREPARE
-                        const prepBody = new URLSearchParams({
-                            nation: myNation,
-                            c: 'giftcard',
-                            cardid: cid,
-                            season: s,
-                            to: recipient,
-                            mode: 'prepare'
-                        });
-
+                        await smartSleep();
+                        const prepBody = new URLSearchParams({ nation: myNation, c: 'giftcard', cardid: cid, season: s, to: recipient, mode: 'prepare' });
                         const prepHeaders = { 'User-Agent': ua };
                         if (!pin) prepHeaders['X-Password'] = password;
                         else prepHeaders['X-Pin'] = pin;
 
-                        const prepRes = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi`, {
-                            method: 'POST',
-                            headers: prepHeaders,
-                            body: prepBody
-                        });
-
-                        // Keep track of PIN if it was returned or updated
+                        const prepRes = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi`, { method: 'POST', headers: prepHeaders, body: prepBody });
                         const newPin = prepRes.headers.get('X-Pin');
                         if (newPin) pin = newPin;
 
                         const prepXmlText = await prepRes.text();
                         const prepXml = new DOMParser().parseFromString(prepXmlText, "text/xml");
                         const token = prepXml.querySelector("SUCCESS")?.textContent;
-
-                        if (!token) {
-                            const error = prepXml.querySelector("ERROR")?.textContent || "Unknown error";
-                            addLog(`Prep failed for #${cid}: ${error}`, "error");
-                            await sleep(1000);
-                            continue;
-                        }
-
-                        await sleep(1000);
-
-                        // PHASE 2: EXECUTE
-                        const execBody = new URLSearchParams({
-                            nation: myNation,
-                            c: 'giftcard',
-                            cardid: cid,
-                            season: s,
-                            to: recipient,
-                            mode: 'execute',
-                            token: token
-                        });
-
-                        const execRes = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi`, {
-                            method: 'POST',
-                            headers: { 
-                                'User-Agent': ua,
-                                'X-Pin': pin
-                            },
-                            body: execBody
-                        });
-
-                        if (execRes.ok) {
-                            addLog(`Successfully gifted card #${cid} S${s} to ${recipient}`, "success");
-                        } else {
-                            addLog(`Exec failed for #${cid} S${s}: Status ${execRes.status}`, "error");
-                        }
                         
-                        await sleep(1000);
+                        if (!token) {
+                            addLog(`Auth Error: ${prepXml.querySelector("ERROR")?.textContent || "Failed"}`, "error");
+                            continue; 
+                        }
+
+                        await smartSleep();
+                        const execBody = new URLSearchParams({ nation: myNation, c: 'giftcard', cardid: cid, season: s, to: recipient, mode: 'execute', token: token });
+                        const execRes = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi`, { 
+                            method: 'POST', headers: { 'User-Agent': ua, 'X-Pin': pin }, body: execBody 
+                        });
+
+                        if (execRes.ok) addLog(`Success: #${cid} S${s} -> ${recipient}`, "success");
+                        else addLog(`Exec error for #${cid}`, "error");
                     }
                 }
-                addLog("Bulk Gifting Sequence Complete.", "gift");
-            } catch (e) { 
-                addLog(`Gifting process aborted: ${e.message}`, "error"); 
-            } finally {
+                addLog("Bulk Gifting Done.", "gift");
+            } catch (e) { addLog(`Process Error: ${e.message}`, "error"); }
+            finally {
                 isProcessing = false;
                 giftBtn.disabled = false;
                 giftBtn.innerText = "🎁 Gift All Cards";
@@ -391,6 +509,11 @@ cte: 2</textarea>
         cancelAuth.addEventListener('click', () => authModal.classList.add('hidden'));
         confirmGift.addEventListener('click', executeGifting);
         document.getElementById('clearLog').addEventListener('click', () => log.innerHTML = '');
+        
+        // Auto-save UI changes
+        [userAgentInput, recipientInput, configInput, whitelistInput].forEach(el => {
+            el.addEventListener('change', savePersistentData);
+        });
     </script>
 </body>
 </html>
