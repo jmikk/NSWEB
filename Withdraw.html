@@ -444,69 +444,104 @@ cte: 2</textarea>
         }
 
         async function executeGifting() {
-            const password = passwordInput.value.trim();
-            const recipient = recipientInput.value.trim();
-            const ua = userAgentInput.value.trim();
-            const myNation = ua.split(/[^\w]/)[0];
-            const lines = cardInput.value.split('\n').filter(l => l.trim() !== '');
+    const password = passwordInput.value.trim();
+    const recipient = recipientInput.value.trim();
+    const ua = userAgentInput.value.trim();
+    const myNation = ua.replace(/\s+/g, "_").toLowerCase(); // Standardize nation name
+    const lines = cardInput.value.split('\n').filter(l => l.trim() !== '');
 
-            if (!password) return addLog("Password required.", "error");
+    if (!password) return addLog("Password required.", "error");
 
-            authModal.classList.add('hidden');
-            isProcessing = true;
-            giftBtn.disabled = true;
-            giftBtn.innerHTML = `<span class="spinner"></span> Gifting...`;
+    authModal.classList.add('hidden');
+    isProcessing = true;
+    giftBtn.disabled = true;
+    giftBtn.innerHTML = `<span class="spinner"></span> Gifting...`;
 
-            let pin = null;
+    let pin = null;
 
-            try {
-                for (const line of lines) {
-                    const { cleanLine, multiplier } = extractMultiplier(line);
-                    const cidMatch = cleanLine.match(/card=(\d+)/), sMatch = cleanLine.match(/season=(\d+)/);
-                    if (!cidMatch || !sMatch) continue;
-                    const cid = cidMatch[1], s = sMatch[1];
-                    
-                    for (let i = 0; i < multiplier; i++) {
-                        addLog(`Gifting #${cid} S${s} (${i+1}/${multiplier})...`, "gift");
-                        
-                        await smartSleep();
-                        const prepBody = new URLSearchParams({ nation: myNation, c: 'giftcard', cardid: cid, season: s, to: recipient, mode: 'prepare' });
-                        const prepHeaders = { 'User-Agent': ua };
-                        if (!pin) prepHeaders['X-Password'] = password;
-                        else prepHeaders['X-Pin'] = pin;
+    try {
+        for (const line of lines) {
+            const { cleanLine, multiplier } = extractMultiplier(line);
+            const cidMatch = cleanLine.match(/card=(\d+)/), sMatch = cleanLine.match(/season=(\d+)/);
+            if (!cidMatch || !sMatch) continue;
+            
+            const cid = cidMatch[1], s = sMatch[1];
+            
+            for (let i = 0; i < multiplier; i++) {
+                addLog(`Gifting #${cid} S${s} (${i+1}/${multiplier})...`, "gift");
+                
+                await smartSleep();
+                
+                // PREPARE STEP
+                const prepBody = new URLSearchParams({ 
+                    nation: myNation, 
+                    c: 'giftcard', 
+                    cardid: cid, 
+                    season: s, 
+                    to: recipient, 
+                    mode: 'prepare' 
+                });
 
-                        const prepRes = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi`, { method: 'POST', headers: prepHeaders, body: prepBody });
-                        const newPin = prepRes.headers.get('X-Pin');
-                        if (newPin) pin = newPin;
+                const prepHeaders = { 'User-Agent': ua };
+                if (!pin) prepHeaders['X-Password'] = password;
+                else prepHeaders['X-Pin'] = pin;
 
-                        const prepXmlText = await prepRes.text();
-                        const prepXml = new DOMParser().parseFromString(xmlStr, "text/xml"); // Note: Fixed potential var name mismatch in original logic if necessary
-                        const token = prepXml.querySelector("SUCCESS")?.textContent;
-                        
-                        if (!token) {
-                            addLog(`Auth Error: ${prepXml.querySelector("ERROR")?.textContent || "Failed"}`, "error");
-                            continue; 
-                        }
+                const prepRes = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi`, { 
+                    method: 'POST', 
+                    headers: prepHeaders, 
+                    body: prepBody 
+                });
 
-                        await smartSleep();
-                        const execBody = new URLSearchParams({ nation: myNation, c: 'giftcard', cardid: cid, season: s, to: recipient, mode: 'execute', token: token });
-                        const execRes = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi`, { 
-                            method: 'POST', headers: { 'User-Agent': ua, 'X-Pin': pin }, body: execBody 
-                        });
+                // Update Pin for all subsequent calls
+                const newPin = prepRes.headers.get('X-Pin');
+                if (newPin) pin = newPin;
 
-                        if (execRes.ok) addLog(`Success: #${cid} S${s} -> ${recipient}`, "success");
-                        else addLog(`Exec error for #${cid}`, "error");
-                    }
+                const prepXmlText = await prepRes.text();
+                // FIX: Use prepXmlText here, not xmlStr
+                const prepXml = new DOMParser().parseFromString(prepXmlText, "text/xml"); 
+                const token = prepXml.querySelector("SUCCESS")?.textContent;
+                
+                if (!token) {
+                    addLog(`Auth Error: ${prepXml.querySelector("ERROR")?.textContent || "No token received"}`, "error");
+                    continue; 
                 }
-                addLog("Bulk Gifting Done.", "gift");
-            } catch (e) { addLog(`Process Error: ${e.message}`, "error"); }
-            finally {
-                isProcessing = false;
-                giftBtn.disabled = false;
-                giftBtn.innerText = "🎁 Gift All Cards";
-                passwordInput.value = '';
+
+                await smartSleep();
+
+                // EXECUTE STEP
+                const execBody = new URLSearchParams({ 
+                    nation: myNation, 
+                    c: 'giftcard', 
+                    cardid: cid, 
+                    season: s, 
+                    to: recipient, 
+                    mode: 'execute', 
+                    token: token 
+                });
+
+                const execRes = await fetch(`https://www.nationstates.net/cgi-bin/api.cgi`, { 
+                    method: 'POST', 
+                    headers: { 'User-Agent': ua, 'X-Pin': pin }, 
+                    body: execBody 
+                });
+
+                if (execRes.ok) {
+                    addLog(`Success: #${cid} S${s} gifted to ${recipient}`, "success");
+                } else {
+                    addLog(`Execution failed for #${cid}`, "error");
+                }
             }
         }
+        addLog("Bulk Gifting process finished.", "gift");
+    } catch (e) { 
+        addLog(`Process Error: ${e.message}`, "error"); 
+    } finally {
+        isProcessing = false;
+        giftBtn.disabled = false;
+        giftBtn.innerText = "🎁 Gift All Cards";
+        passwordInput.value = '';
+    }
+}
 
         runBtn.addEventListener('click', process);
         giftBtn.addEventListener('click', startGifting);
