@@ -289,14 +289,23 @@ cte: 2</textarea>
         }
 
         function extractMultiplier(line) {
-            let multiplier = 1;
-            const match = line.match(/\((x?\d+)\)$/) || line.match(/x(\d+)$/) || line.match(/^(\d+)x/);
-            if (match) {
-                multiplier = parseInt(match[1]);
+        let multiplier = 1;
+        // This regex looks for:
+        // 1. (x5) or (5x) or (5)
+        // 2. x5 or 5x 
+        // at the end of the string
+        const match = line.match(/\((?:x?(\d+)|(\d+)x?)\)$/) || line.match(/(?:x(\d+)|(\d+)x)$/);
+        
+        if (match) {
+            // The value could be in any of the capturing groups depending on the format
+            const val = match[1] || match[2] || match[3] || match[4];
+            if (val) {
+                multiplier = parseInt(val);
                 line = line.replace(match[0], '').trim();
             }
-            return { cleanLine: line, multiplier };
         }
+        return { cleanLine: line, multiplier };
+    }
 
         async function checkCteStatus(nationName, ua) {
             try {
