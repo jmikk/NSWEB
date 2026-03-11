@@ -107,15 +107,18 @@ cte: 2</textarea>
                     <h2 class="text-lg font-semibold mb-4">📊 Totals</h2>
                     <div class="space-y-2">
                         <div class="bg-gray-900 p-2 rounded border-l-4 border-green-500">
-                            <div class="flex justify-between items-start">
-                                <span class="text-[10px] text-gray-500 uppercase font-bold">Adj. Value</span>
-                                <span id="shareValueLabel" class="text-[9px] bg-green-900 text-green-300 px-1 rounded">Shares: 0.00</span>
-                            </div>
+                            <span class="text-[10px] text-gray-500 uppercase font-bold">Adj. Value</span>
                             <div id="adjTotal" class="text-xl font-mono">0.00</div>
                         </div>
+                        
                         <div class="bg-gray-900 p-2 rounded border-l-4 border-blue-500">
                             <span class="text-[10px] text-gray-500 uppercase font-bold">Raw MV</span>
                             <div id="unadjTotal" class="text-xl font-mono text-blue-300">0.00</div>
+                        </div>
+                
+                        <div class="bg-gray-900 p-2 rounded border-l-4 border-purple-500">
+                            <span class="text-[10px] text-gray-500 uppercase font-bold">Total Shares</span>
+                            <div id="shareValueBig" class="text-xl font-mono text-purple-300">0</div>
                         </div>
                     </div>
                 </section>
@@ -157,8 +160,8 @@ cte: 2</textarea>
         const log = document.getElementById('log');
         const adjTotalEl = document.getElementById('adjTotal');
         const unadjTotalEl = document.getElementById('unadjTotal');
-        const shareLabel = document.getElementById('shareValueLabel');
-        
+        const shareLabelBig = document.getElementById('shareValueBig');        
+       
         const withdrawPriceInput = document.getElementById('withdrawSharePrice');
         const depositPriceInput = document.getElementById('depositSharePrice');
         
@@ -202,14 +205,15 @@ cte: 2</textarea>
         }
 
         function updateSharesDisplay() {
-            const price = parseFloat(currentMode === 'withdraw' ? withdrawPriceInput.value : depositPriceInput.value) || 1.0;
-            const rawShares = lastCalculatedAdjValue / price;
-            
-            // Rounding logic: Withdraw = Ceil, Deposit = Floor
-            const shares = currentMode === 'withdraw' ? Math.ceil(rawShares) : Math.floor(rawShares);
-            
-            shareLabel.innerText = `Shares: ${shares.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
-        }
+        const price = parseFloat(currentMode === 'withdraw' ? withdrawPriceInput.value : depositPriceInput.value) || 1.0;
+        const rawShares = lastCalculatedAdjValue / price;
+        
+        // Rounding logic: Withdraw = Ceil, Deposit = Floor
+        const shares = currentMode === 'withdraw' ? Math.ceil(rawShares) : Math.floor(rawShares);
+        
+        // Update the big box
+        shareLabelBig.innerText = shares.toLocaleString();
+    }
 
         // Smart Sleep Utility
         let lastApiCall = 0;
